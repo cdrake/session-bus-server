@@ -94,27 +94,21 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
       session.readers.push(connectionId);
     }
   }
-
+  else {
+    sessions.set(sessionName, {name: sessionName, sessionKey, editors: [connectionId], readers: [] });
+  }
+  
   // Handle incoming messages
   ws.on('message', (message: string) => {
     // Parse the incoming message as JSON
     const data = JSON.parse(message);
 
     // Log the received message
-    console.log('Received message from connection %s: %o', connectionId, data);
-
-    // Check if the message contains a 'session' property
-    if (!sessions.has(sessionName)) {
-      if (data.session) {
-        // Add the session to the Map with the session name as the key
-        sessions.set(sessionName, data.session);
-      }
+    console.log('Received message from connection %s: %o', connectionId, data);        
+    if (session && session.editors.includes(connectionId)) {
+      sendMessageToOtherSessionUsers(connectionId, sessionName, JSON.stringify(data));
     }
-    else {
-      if (session && session.editors.includes(connectionId)) {
-        sendMessageToOtherSessionUsers(connectionId, sessionName, JSON.stringify(data));
-      }
-    }
+  
 
     if (data.user) {
       if (users.has(connectionId)) {
