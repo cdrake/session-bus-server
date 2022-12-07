@@ -61,6 +61,13 @@ function getSessionUsers(sessionName: string): SessionUser[] {
   return sessionUsers;
 }
 
+function userToJSON(user: SessionUser): any {
+  return {
+    userId: user.userId,
+    userProperties: Object.fromEntries(user.userProperties)  
+  };
+}
+
 wss.on('connection', (ws: WebSocket, req: Request) => {
   // Generate a new UUID for the connection
   const connectionId = uuid();
@@ -72,7 +79,10 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
   const userProperties = new Map<string, string>();
   const displayName = `user-${connectionId}`;
   userProperties.set('displayName', displayName);
-  users.set(connectionId, { userId: connectionId, userProperties });
+  const user = { userId: connectionId, userProperties };
+  users.set(connectionId, user);
+  console.log(user);
+  
 
   // Parse the query string from the request URL
   const params = new URLSearchParams(req.url.split('?')[1]);
@@ -106,6 +116,7 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
     // Log the received message
     console.log('Received message from connection %s: %o', connectionId, data);        
     if (session && session.editors.includes(connectionId)) {
+      console.log('user is editor. sending to other clients');
       sendMessageToOtherSessionUsers(connectionId, sessionName, JSON.stringify(data));
     }
   
@@ -120,10 +131,13 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
   // Send a feedback message with the connection ID and session name to the incoming connection
   ws.send(JSON.stringify({op: 'session connected', connectionId, sessionName }));
   // Send the list of current users
-  ws.send(JSON.stringify({op: 'user list', 'users': getSessionUsers(sessionName)}));
+  const sessionUsers = getSessionUsers(sessionName);
+  ws.send(JSON.stringify({op: 'user list', users: sessionUsers.map(u => (userToJSON(u)))}));
+  console.log(sessionUsers);
   // Send all other session users
   sendMessageToOtherSessionUsers(connectionId, sessionName, JSON.stringify({ op: 'user joined', user: users.get(connectionId) }));
 });
+
 
 // Start the server
 server.listen(process.env.PORT || 8999, () => {
