@@ -18,6 +18,7 @@ const connections = new Map<string, WebSocket>();
 // Define a session object
 interface Session {
   name: string;
+  owner: string;
   editors: string[];
   readers: string[];
   sessionKey: string;
@@ -31,6 +32,9 @@ interface SessionUser {
 // Initialize an empty Map to store session objects by their name
 const sessions = new Map<string, Session>();
 const users = new Map<string, SessionUser>();
+// Strings that represent session state
+const sessionStates = new Map<string, string>();
+
 
 function sendMessageToOtherConnections(connectionId: string, message: string) {
   for (const [id, conn] of connections) {
@@ -61,11 +65,27 @@ function getSessionUsers(sessionName: string): SessionUser[] {
   return sessionUsers;
 }
 
-function userToJSON(user: SessionUser): {userId: string, userProperties: Object} {
+function userToJSON(user: SessionUser): { userId: string, userProperties: Object } {
   return {
     userId: user.userId,
-    userProperties: Object.fromEntries(user.userProperties)  
+    userProperties: Object.fromEntries(user.userProperties)
   };
+}
+
+function isEditor(sessionName: string, connectionId: string): boolean {
+  const session = sessions.get(sessionName);
+  if (!session) {
+    return false;
+  }
+  return session.editors.includes(connectionId);
+}
+
+function isOwner(sessionName: string, connectionId: string): boolean {
+  const session = sessions.get(sessionName);
+  if (!session) {
+    return false;
+  }
+  return session.owner === connectionId;
 }
 
 wss.on('connection', (ws: WebSocket, req: Request) => {
@@ -82,7 +102,7 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
   const user = { userId: connectionId, userProperties };
   users.set(connectionId, user);
   console.log(user);
-  
+
 
   // Parse the query string from the request URL
   const params = new URLSearchParams(req.url.split('?')[1]);
@@ -105,21 +125,21 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
     }
   }
   else {
-    sessions.set(sessionName, {name: sessionName, sessionKey, editors: [connectionId], readers: [] });
+    sessions.set(sessionName, { name: sessionName, owner: connectionId, sessionKey, editors: [connectionId], readers: [] });
   }
-  
+
   // Handle incoming messages
   ws.on('message', (message: string) => {
     // Parse the incoming message as JSON
     const data = JSON.parse(message);
 
     // Log the received message
-    console.log('Received message from connection %s: %o', connectionId, data);        
+    console.log('Received message from connection %s: %o', connectionId, data);
     if (session && session.editors.includes(connectionId)) {
       console.log('user is editor. sending to other clients');
       sendMessageToOtherSessionUsers(connectionId, sessionName, JSON.stringify(data));
     }
-  
+
 
     if (data.user) {
       if (users.has(connectionId)) {
@@ -129,10 +149,10 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
   });
 
   // Send a feedback message with the connection ID and session name to the incoming connection
-  ws.send(JSON.stringify({op: 'session connected', connectionId, sessionName }));
+  ws.send(JSON.stringify({ op: 'session connected', isEditor: isEditor(sessionName, connectionId), isOwner: isOwner(sessionName, connectionId), connectionId, sessionName }));
   // Send the list of current users
   const sessionUsers = getSessionUsers(sessionName);
-  ws.send(JSON.stringify({op: 'user list', users: sessionUsers.map(u => (userToJSON(u)))}));
+  ws.send(JSON.stringify({ op: 'user list', users: sessionUsers.map(u => (userToJSON(u))) }));
   console.log(sessionUsers);
   // Send all other session users
   sendMessageToOtherSessionUsers(connectionId, sessionName, JSON.stringify({ op: 'user joined', user: users.get(connectionId) }));
