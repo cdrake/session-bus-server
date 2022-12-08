@@ -61,7 +61,7 @@ function getSessionUsers(sessionName: string): SessionUser[] {
   return sessionUsers;
 }
 
-function userToJSON(user: SessionUser): any {
+function userToJSON(user: SessionUser): {userId: string, userProperties: Object} {
   return {
     userId: user.userId,
     userProperties: Object.fromEntries(user.userProperties)  
