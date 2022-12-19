@@ -156,6 +156,10 @@ wss.on('connection', (ws: WebSocket, req: Request) => {
         sessionStates.set(sessionName, updatedSessionState);        
       }
 
+      // else if data.sessionStateRemoveItems
+
+      // else if data.sessionStateAddToArray
+
       sendMessageToOtherSessionUsers(connectionId, sessionName, JSON.stringify(data));
     }
 
